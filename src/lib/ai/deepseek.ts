@@ -49,8 +49,7 @@ Target Word: "${currentWord}" (${wordMeaning})
                 ...messages
             ],
             model: "deepseek-chat",
-            tools: AGENT_TOOLS,
-            tool_choice: "auto",
+            // 【重要】不传 tools 参数，完全禁止工具调用
             stream: true
         });
 
@@ -249,5 +248,39 @@ export async function callSimpleChat(
     } catch (error) {
         console.error("Simple Chat Error:", error);
         return "Thinking error...";
+    }
+}
+
+// ===== 教学流式响应 (不使用 tools，纯文本输出) =====
+export async function callTeachingStream(
+    systemPrompt: string,
+    messages: DeepSeekMessage[],
+    onToken: (token: string) => void
+): Promise<string> {
+    try {
+        const stream = await deepseek.chat.completions.create({
+            messages: [
+                { role: "system", content: systemPrompt },
+                ...messages
+            ],
+            model: "deepseek-chat",
+            temperature: 0.8,
+            stream: true
+            // 注意：不使用 tools，确保纯文本输出
+        });
+
+        let fullContent = "";
+
+        for await (const chunk of stream) {
+            const delta = chunk.choices[0]?.delta?.content || "";
+            fullContent += delta;
+            if (delta) onToken(delta);
+        }
+
+        return fullContent;
+
+    } catch (error) {
+        console.error("Teaching Stream Error:", error);
+        return "（教学内容加载失败）";
     }
 }

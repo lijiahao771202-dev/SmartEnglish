@@ -77,7 +77,7 @@ export function NextStepButton() {
         const currentIdx = VOCABULARY_DATABASE.findIndex((w: any) => w.word === currentWordId);
         if (currentIdx < VOCABULARY_DATABASE.length - 1) {
             switchWord(VOCABULARY_DATABASE[currentIdx + 1].word);
-            setTimeout(() => showCardForStage(CardStage.Detail), 300);
+            setTimeout(() => showCardForStage(CardStage.Phonetic), 300);
         }
     };
 

@@ -1,59 +1,175 @@
-// 新卡片类型定义 - 4 种核心卡片
-export type CardType =
-    | 'detail'      // 详情卡
-    | 'quiz'        // 四选一测验
-    | 'speaking'    // 发音跟读
-    | 'spelling_writing';  // 拼写与仿写
+/**
+ * 系统驱动卡片类型定义
+ * 6 种核心卡片：发音/释义/例句/助记/搭配/拼写
+ */
 
+// 卡片类型枚举
+export type SystemCardType =
+    | 'phonetic'      // 发音卡
+    | 'definition'    // 释义卡
+    | 'example'       // 例句卡
+    | 'memory_hook'   // 助记卡
+    | 'collocation'   // 搭配卡
+    | 'spelling'      // 拼写卡
+    | 'writing';      // 仿写卡
+
+// 卡片序列顺序
+export const CARD_SEQUENCE: SystemCardType[] = [
+    'phonetic',
+    'definition',
+    'example',
+    'memory_hook',
+    'collocation',
+    'spelling',
+    'writing'  // 仿写卡放在最后
+];
+
+// 基础卡片数据
 export interface BaseCardData {
-    type: CardType;
+    type: SystemCardType;
     word: string;
-    title?: string;
 }
 
-// ===== 1. DetailCard 详情卡 =====
-export interface DetailCardData extends BaseCardData {
-    type: 'detail';
-    word: string;
+// 发音卡
+export interface PhoneticCardData extends BaseCardData {
+    type: 'phonetic';
     phonetic: string;
-    definition: string;           // 中文释义
-    definitionEn?: string;        // 英文释义
-    exampleSentence: string;      // 例句
-    exampleTranslation: string;   // 例句翻译
-    aiSupplement?: string;        // AI 补充内容 (词源/联想/文化)
 }
 
-// ===== 2. QuizCard 四选一测验 =====
-export interface QuizCardData extends BaseCardData {
-    type: 'quiz';
-    question: string;
-    options: {
-        id: string;
-        label: string;
-        isCorrect: boolean;
-    }[];
-    explanation: string;  // 答案解释
+// 释义卡
+export interface DefinitionCardData extends BaseCardData {
+    type: 'definition';
+    definition: string;
+    definitionEn?: string;
 }
 
-// ===== 3. SpeakingCard 发音跟读 =====
-export interface SpeakingCardData extends BaseCardData {
-    type: 'speaking';
-    sentence: string;            // 要跟读的例句
-    sentenceTranslation: string; // 例句翻译
-    highlightWord: string;       // 高亮显示的目标单词
+// 例句卡
+export interface ExampleCardData extends BaseCardData {
+    type: 'example';
+    sentence?: string;
+    translation?: string;
+    // 兼容旧数据格式
+    examples?: { sentence: string; translation: string }[];
 }
 
-// ===== 4. SpellingWritingCard 拼写与仿写 =====
-export interface SpellingWritingCardData extends BaseCardData {
-    type: 'spelling_writing';
-    hint: string;               // 拼写提示 (如 s_r_n_i_i_y)
-    definition: string;         // 释义提示
-    exampleSentence: string;    // 参考例句 (用于仿写)
+// 助记卡
+export interface MemoryHookCardData extends BaseCardData {
+    type: 'memory_hook';
+    content: string;  // 词根/联想/口诀
+}
+
+// 搭配卡
+export interface CollocationCardData extends BaseCardData {
+    type: 'collocation';
+    collocations: { phrase: string; translation: string }[];
+}
+
+// 拼写卡
+export interface SpellingCardData extends BaseCardData {
+    type: 'spelling';
+    hint: string;  // 中文释义作为提示
+}
+
+// 仿写卡
+export interface WritingCardData extends BaseCardData {
+    type: 'writing';
+    prompt: string;      // 仿写提示
+    exampleSentence: string;  // 参考例句
+    definition: string;  // 单词释义
 }
 
 // 联合类型
 export type CardData =
+    | PhoneticCardData
+    | DefinitionCardData
+    | ExampleCardData
+    | MemoryHookCardData
+    | CollocationCardData
+    | SpellingCardData
+    | WritingCardData;
+
+// 获取下一个卡片类型
+export function getNextCardType(current: SystemCardType): SystemCardType | null {
+    const index = CARD_SEQUENCE.indexOf(current);
+    if (index === -1 || index >= CARD_SEQUENCE.length - 1) {
+        return null;
+    }
+    return CARD_SEQUENCE[index + 1];
+}
+
+// 获取卡片显示名称
+export function getCardTypeName(type: SystemCardType): string {
+    const names: Record<SystemCardType, string> = {
+        phonetic: '🔊 发音',
+        definition: '📖 释义',
+        example: '📝 例句',
+        memory_hook: '💡 助记',
+        collocation: '🔗 搭配',
+        spelling: '✍️ 拼写',
+        writing: '📝 仿写'
+    };
+    return names[type];
+}
+
+// ===== 向后兼容类型 (旧组件使用) =====
+export interface DetailCardData {
+    type: 'detail';
+    word: string;
+    phonetic: string;
+    definition: string;
+    definitionEn?: string;
+    exampleSentence: string;
+    exampleTranslation: string;
+    aiSupplement?: string;
+}
+
+export interface QuizCardData {
+    type: 'quiz';
+    word: string;
+    question: string;
+    options: { text?: string; label: string; id: string; isCorrect: boolean }[];
+    explanation: string;
+}
+
+export interface SpeakingCardData {
+    type: 'speaking';
+    word: string;
+    sentence: string;
+    sentenceTranslation: string;
+    highlightWord: string;
+}
+
+export interface SpellingWritingCardData {
+    type: 'spelling_writing';
+    word: string;
+    hint: string;
+    definition: string;
+    exampleSentence: string;
+}
+
+export interface SceneCardData {
+    type: 'scene';
+    location: string;
+    role_ai: string;
+    role_user: string;
+}
+
+export interface JourneyCardData {
+    type: 'journey';
+    word: string;
+    phonetic: string;
+    definition: string;
+    englishDefinition?: string;
+    supplement?: string;
+    examples: { sentence: string; translation: string }[];
+    collocations: { phrase: string; translation: string }[];
+}
+
+// 合并旧类型
+export type LegacyCardData =
     | DetailCardData
     | QuizCardData
     | SpeakingCardData
-    | SpellingWritingCardData;
+    | SpellingWritingCardData
+    | SceneCardData
+    | JourneyCardData;

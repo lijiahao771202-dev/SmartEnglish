@@ -5,6 +5,7 @@ import { useChatStore } from "@/lib/store/chat-store";
 import { MessageBubble } from "./MessageBubble";
 import { ChatInput } from "./ChatInput";
 import { QuickReplies } from "./QuickReplies";
+import { SystemCardController } from "./SystemCardArea";
 import { BookOpen, Zap, ZapOff, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -29,34 +30,34 @@ export function ChatInterface() {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages, quickReplies]);
 
-    // 监测用户空闲（沉默）
-    useEffect(() => {
-        const resetTimer = () => {
-            if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-            if (!isTyping && !autoMode && messages.length > 0) {
-                silenceTimerRef.current = setTimeout(() => {
-                    handleUserSilence();
-                }, 15000);
-            }
-        };
-
-        window.addEventListener('mousemove', resetTimer);
-        window.addEventListener('keypress', resetTimer);
-        window.addEventListener('click', resetTimer);
-        window.addEventListener('scroll', resetTimer);
-        window.addEventListener('touchstart', resetTimer);
-
-        resetTimer();
-
-        return () => {
-            if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-            window.removeEventListener('mousemove', resetTimer);
-            window.removeEventListener('keypress', resetTimer);
-            window.removeEventListener('click', resetTimer);
-            window.removeEventListener('scroll', resetTimer);
-            window.removeEventListener('touchstart', resetTimer);
-        };
-    }, [isTyping, autoMode, messages.length, handleUserSilence]);
+    // 【已禁用】监测用户空闲（沉默）- 用户不希望 AI 主动打扰
+    // useEffect(() => {
+    //     const resetTimer = () => {
+    //         if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+    //         if (!isTyping && !autoMode && messages.length > 0) {
+    //             silenceTimerRef.current = setTimeout(() => {
+    //                 handleUserSilence();
+    //             }, 15000);
+    //         }
+    //     };
+    //
+    //     window.addEventListener('mousemove', resetTimer);
+    //     window.addEventListener('keypress', resetTimer);
+    //     window.addEventListener('click', resetTimer);
+    //     window.addEventListener('scroll', resetTimer);
+    //     window.addEventListener('touchstart', resetTimer);
+    //
+    //     resetTimer();
+    //
+    //     return () => {
+    //         if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+    //         window.removeEventListener('mousemove', resetTimer);
+    //         window.removeEventListener('keypress', resetTimer);
+    //         window.removeEventListener('click', resetTimer);
+    //         window.removeEventListener('scroll', resetTimer);
+    //         window.removeEventListener('touchstart', resetTimer);
+    //     };
+    // }, [isTyping, autoMode, messages.length, handleUserSilence]);
 
     // 自动模式启动
     useEffect(() => {
@@ -114,8 +115,12 @@ export function ChatInterface() {
             {/* Messages Container */}
             <div className="flex-1 overflow-y-auto px-4 pb-4 scrollbar-hide">
                 <div className="max-w-2xl mx-auto flex flex-col min-h-full py-10">
-                    {messages.map((msg) => (
-                        <MessageBubble key={msg.id} message={msg} />
+                    {messages.map((msg, index) => (
+                        <MessageBubble
+                            key={msg.id}
+                            message={msg}
+                            isLastMessage={index === messages.length - 1}
+                        />
                     ))}
 
                     {/* Typing Indicator */}
@@ -127,16 +132,10 @@ export function ChatInterface() {
                         </div>
                     )}
 
-                    {/* Quick Replies */}
-                    {!isTyping && quickReplies.length > 0 && (
-                        <div className="border-t border-slate-200/50 dark:border-slate-800/50 pt-4 mt-2">
-                            <QuickReplies
-                                replies={quickReplies}
-                                onSelect={handleQuickReply}
-                                disabled={isTyping}
-                            />
-                        </div>
-                    )}
+                    {/* 系统卡片控制器（不渲染 UI，只做逻辑控制）*/}
+                    <SystemCardController />
+
+                    {/* 快捷回复已移到 AI 消息框内 */}
 
                     <div ref={messagesEndRef} />
                 </div>

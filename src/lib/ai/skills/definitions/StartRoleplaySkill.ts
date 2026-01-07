@@ -1,39 +1,38 @@
-import { Skill, SkillContext } from '../types';
-import { CardData } from '@/lib/ai/card-types';
+/**
+ * StartRoleplaySkill - 情景模拟技能
+ * 注意：此技能不生成卡片，仅添加文本说明
+ */
+
+import { Skill } from '../types';
 
 export const StartRoleplaySkill: Skill = {
     name: "start_roleplay",
-    description: "开始情景模拟挑战。当学生掌握了单词含义，想尝试在实际对话中使用时调用。",
+    description: "开始一个情景模拟对话，帮助学生在真实场景中使用所学单词。",
     parameters: {
         type: "object",
         properties: {
-            scenario: { type: "string", description: "场景描述" },
-            aiRole: { type: "string", description: "AI 扮演的角色" },
-            userRole: { type: "string", description: "用户扮演的角色" },
-            objective: { type: "string", description: "任务目标" }
+            scenario: {
+                type: "string",
+                description: "情景描述，如：在咖啡店点单"
+            },
+            role_ai: {
+                type: "string",
+                description: "AI扮演的角色，如：咖啡店店员"
+            },
+            role_user: {
+                type: "string",
+                description: "用户扮演的角色，如：顾客"
+            }
         },
-        required: ["scenario", "aiRole", "userRole", "objective"]
+        required: ["scenario", "role_ai", "role_user"]
     },
     execute: async (args, context) => {
         const { getState } = context;
-        const word = getState().getCurrentWord();
-        if (!word) return;
 
-        const roleplayData = {
-            type: 'roleplay' as const,
-            word: word.word,
-            scenario: args.scenario,
-            aiRole: args.aiRole,
-            userRole: args.userRole,
-            objective: args.objective
-        };
-
-        await new Promise(r => setTimeout(r, 300));
+        // 不生成卡片，只添加文本说明场景
         getState().addMessage({
             role: 'assistant',
-            content: '',
-            type: 'card',
-            cardData: roleplayData as unknown as CardData
+            content: `🎭 **情景模拟开始！**\n\n📍 场景：${args.scenario}\n👤 你扮演：${args.role_user}\n🤖 我扮演：${args.role_ai}\n\n让我们开始吧！`
         });
     }
 };

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { CardData } from '@/lib/ai/card-types';
-import { VOCABULARY_DATABASE, WordLearningData } from '@/lib/data/vocabulary-cards';
+import { VOCABULARY_DATABASE, WordLearningData, getWordData } from '@/lib/data/vocabulary-cards';
 import { QuickReply, MasteryState, initialMasteryState } from '@/lib/ai/agent';
 import { DeepSeekMessage } from '@/lib/ai/deepseek';
 import { fsrs, CardState, Rating } from '@/lib/algorithms/fsrs';
@@ -67,6 +67,9 @@ export interface AgentState {
     // FSRS 进度状态 (MindFlow 2.0)
     wordProgress: Record<string, WordProgress>;
 
+    // Phase 3: Infinite Vocabulary
+    dynamicVocabulary: Record<string, WordLearningData>; // 动态生成的单词数据
+
     // Daily Session State
     dailySessionActive: boolean;
     startDailySession: () => void;
@@ -84,6 +87,7 @@ export interface AgentState {
     // Actions
     addMessage: (message: Omit<Message, 'id'>) => string;
     updateMessage: (id: string, updater: (content: string) => string) => void;
+    deleteMessage: (id: string) => void;
     updateLastMessage: (updater: (content: string) => string) => void;
     setTyping: (typing: boolean) => void;
     setQuickReplies: (replies: QuickReply[]) => void;
@@ -106,6 +110,8 @@ export interface AgentState {
     autoContinue: () => Promise<void>; // AI 自动继续
     handleUserSilence: () => Promise<void>; // 处理用户沉默
     chatRoleplay: (scenario: string, aiRole: string, userRole: string, history: RoleplayMessage[]) => Promise<string>; // 角色扮演对话
+    addDynamicWord: (wordData: WordLearningData) => void; // New action for Phase 3
+    toggleLearnedWord: (wordId: string) => void; // Manual graduation
     clearData: () => void; // Reset all data
 }
 
@@ -149,70 +155,72 @@ export const useChatStore = create<AgentState>()(
             wordSessions: {}, // 初始为空，按需创建
             learnedWords: [],
             wordProgress: {}, // FSRS Init
+            dynamicVocabulary: {}, // Init
             messages: [], // Initialize messages array
 
+            addDynamicWord: (wordData) => {
+                set((state) => ({
+                    dynamicVocabulary: {
+                        ...(state.dynamicVocabulary || {}),
+                        [wordData.word.toLowerCase()]: wordData
+                    }
+                }));
+            },
+
+            toggleLearnedWord: (wordId: string) => {
+                const { learnedWords, wordProgress } = get();
+                const isLearned = learnedWords.includes(wordId);
+                let newLearnedWords = [...learnedWords];
+
+                if (isLearned) {
+                    newLearnedWords = newLearnedWords.filter(w => w !== wordId);
+                } else {
+                    newLearnedWords.push(wordId);
+                    // Also initialize FSRS if not exists
+                    if (!wordProgress[wordId]) {
+                        get().recordReview(wordId, 'good');
+                    }
+                }
+
+                set({ learnedWords: newLearnedWords });
+                console.log(`[Mastery] Manually toggled ${wordId} to ${!isLearned ? 'Learned' : 'Unlearned'}`);
+            },
             // Card-Driven Learning Flow State
-            currentCardStage: CardStage.Detail,
+            currentCardStage: CardStage.Phonetic,
             countdownActive: false,
             countdownSeconds: 5,
 
             // Card-Driven Learning Flow Actions
             showCardForStage: (stage: CardStage) => {
-                const { currentWordId } = get();
-                const word = VOCABULARY_DATABASE.find(w => w.word === currentWordId);
-                if (!word) return;
-
-                const cardType = getCardTypeForStage(stage);
-                let cardData: CardData | null = null;
-
-                switch (cardType) {
-                    case 'detail': cardData = word.detail; break;
-                    case 'quiz': cardData = word.quiz; break;
-                    case 'speaking': cardData = word.speaking; break;
-                    case 'spelling_writing': cardData = word.spellingWriting; break;
+                const { currentWordId, getCurrentWord } = get();
+                // Upgrade: Use getCurrentWord() instead of direct DB lookup to support Dynamic Words
+                const word = getCurrentWord();
+                if (!word || word.word.toLowerCase() !== currentWordId.toLowerCase()) {
+                    // Fallback lookup if mismatch (should not happen if selectWord works right)
+                    const dbWord = VOCABULARY_DATABASE.find(w => w.word.toLowerCase() === currentWordId.toLowerCase());
+                    if (!dbWord) return;
                 }
 
-                if (cardData) {
-                    get().addMessage({
-                        role: 'assistant',
-                        content: '',
-                        type: 'card',
-                        cardData
-                    });
-                    set({ currentCardStage: stage });
-                    // Trigger Contextual AI Commentary
-                    get().generateCardCommentary(word, stage);
-                }
+                // Safe access after check
+                const targetWord = word!;
+
+                set({ currentCardStage: stage });
+                // Trigger Contextual AI Commentary (This is now the MAIN content)
+                get().generateCardCommentary(targetWord, stage);
             },
 
-            advanceToNextCard: (isSuccess: boolean) => {
-                const { currentWordId, currentCardStage } = get();
-                // Removed unused session retrieval
+            advanceToNextCard: (_isSuccess: boolean) => {
+                const { currentCardStage } = get();
 
-                // 更新掌握状态 (新的4卡片流程)
-                if (isSuccess) {
-                    // 所有阶段成功都记录
-                }
-
-                // 获取更新后的 session (removed unused var)
-                // const updatedSession = getSession(get(), currentWordId);
+                // 新系统使用 system-card-store 管理卡片状态
+                // 此函数保留为向后兼容
                 const nextStage = getNextCardStage(currentCardStage);
 
-                // 添加评论
-                const comment = getCompletionComment(currentCardStage, isSuccess);
-                if (comment) {
-                    get().addMessage({ role: 'assistant', content: comment });
-                }
-
-                // 如果已掌握，开始倒计时
-                if (nextStage === CardStage.Mastered) {
-                    set({ currentCardStage: CardStage.Mastered });
+                if (nextStage === CardStage.Completed) {
+                    set({ currentCardStage: CardStage.Completed });
                     get().startCountdownToNextWord();
                 } else {
-                    // 展示下一张卡片
-                    setTimeout(() => {
-                        get().showCardForStage(nextStage);
-                    }, 800);
+                    set({ currentCardStage: nextStage });
                 }
             },
 
@@ -233,7 +241,7 @@ export const useChatStore = create<AgentState>()(
                         const currentIdx = VOCABULARY_DATABASE.findIndex(w => w.word === get().currentWordId);
                         if (currentIdx < VOCABULARY_DATABASE.length - 1) {
                             get().switchWord(VOCABULARY_DATABASE[currentIdx + 1].word);
-                            get().showCardForStage(CardStage.Detail);
+                            // 新系统会自动通过 SystemCardArea 显示卡片
                         }
                     } else {
                         set({ countdownSeconds: countdownSeconds - 1 });
@@ -293,6 +301,21 @@ export const useChatStore = create<AgentState>()(
                 const newMessages = [...session.messages];
                 newMessages[msgIndex] = updatedMsg;
 
+                const newSession = { ...session, messages: newMessages };
+
+                set({
+                    wordSessions: {
+                        ...wordSessions,
+                        [currentWordId]: newSession
+                    },
+                    messages: newSession.messages
+                });
+            },
+
+            deleteMessage: (id) => {
+                const { currentWordId, wordSessions } = get();
+                const session = getSession(get(), currentWordId);
+                const newMessages = session.messages.filter(m => m.id !== id);
                 const newSession = { ...session, messages: newMessages };
 
                 set({
@@ -456,8 +479,14 @@ export const useChatStore = create<AgentState>()(
             },
 
             getCurrentWord: () => {
-                const { currentWordId } = get();
-                return VOCABULARY_DATABASE.find(w => w.word === currentWordId) || null;
+                const { currentWordId, dynamicVocabulary } = get();
+                if (!currentWordId) return null;
+                // 1. Check Dynamic Cache First (Priority for new words)
+                if (dynamicVocabulary && dynamicVocabulary[currentWordId.toLowerCase()]) {
+                    return dynamicVocabulary[currentWordId.toLowerCase()];
+                }
+                // 2. Use the unified getWordData (Static + IELTS)
+                return getWordData(currentWordId) || null;
             },
 
             handleQuickReply: async (reply) => {
@@ -609,17 +638,15 @@ ${history.map(m => `${m.role === 'user' ? '用户' : aiRole}: ${m.content}`).joi
                 let userContext = "用户沉默中，需要激活";
 
                 if (lastMsg?.type === 'card') {
-                    const cardType = lastMsg.cardData?.type;
-                    if (cardType === 'quiz') {
-                        proactivePrompt = EXPANSION_PROMPTS.quiz(word.word);
-                        userContext = "User is silent at Quiz card";
-                    } else if (cardType === 'detail') {
+                    const cardType = lastMsg.cardData?.type as string | undefined;
+                    // 兼容新旧卡片类型
+                    if (cardType === 'phonetic' || cardType === 'definition') {
                         proactivePrompt = EXPANSION_PROMPTS.detail(word.word);
-                        userContext = "User is silent at Detail card";
-                    } else if (cardType === 'speaking') {
+                        userContext = "User is silent at Definition card";
+                    } else if (cardType === 'example') {
                         proactivePrompt = EXPANSION_PROMPTS.speaking(word.word);
-                        userContext = "User is silent at Speaking card";
-                    } else if (cardType === 'spelling_writing') {
+                        userContext = "User is silent at Example card";
+                    } else if (cardType === 'spelling' || cardType === 'memory_hook' || cardType === 'collocation') {
                         proactivePrompt = EXPANSION_PROMPTS.spelling_writing(word.word);
                         userContext = "User is silent at Spelling card";
                     } else {
@@ -742,17 +769,29 @@ ${history.map(m => `${m.role === 'user' ? '用户' : aiRole}: ${m.content}`).joi
                 try {
                     const { callAgent } = await import('@/lib/ai/deepseek');
 
-                    // Streaming: Start with empty message
-                    const messageId = get().addMessage({ role: 'assistant', content: '' });
+                    // Streaming: Start with '...' to avoid empty bubble
+                    const messageId = get().addMessage({ role: 'assistant', content: '...' });
 
                     const response = await callAgent(
                         newHistory,
                         word.word,
                         word.detail.definition,
-                        (token) => get().updateMessage(messageId, (prev) => prev + token)
+                        (token) => get().updateMessage(messageId, (prev) => (prev === '...' ? token : prev + token))
                     );
 
                     if (response.toolCall) {
+                        // If tool called:
+                        // 1. If message was just placeholder "...", delete it.
+                        // 2. If message had real content, keep it but remove the "..." prefix if present.
+                        const currentSession = get().wordSessions[currentWordId];
+                        const currentMsg = currentSession?.messages.find(m => m.id === messageId);
+
+                        if (currentMsg && (currentMsg.content === '...' || currentMsg.content === '')) {
+                            get().deleteMessage(messageId);
+                        } else if (currentMsg && currentMsg.content.startsWith('...')) {
+                            get().updateMessage(messageId, (prev) => prev.replace('...', '').trim());
+                        }
+
                         await executeToolCall(response.toolCall, word, response.message, get, set);
                     } else {
                         // The UI message is already updated via streaming.
@@ -803,7 +842,8 @@ ${history.map(m => `${m.role === 'user' ? '用户' : aiRole}: ${m.content}`).joi
                         prompt = COMMENTARY_PROMPTS.detail(word.word, word.detail.definition);
                         break;
                     case 'quiz':
-                        prompt = COMMENTARY_PROMPTS.quiz(word.word);
+                        const optionsText = word.quiz.options.map(o => `${o.id}: ${o.label}`).join('\n');
+                        prompt = COMMENTARY_PROMPTS.quiz(word.word, optionsText);
                         break;
                     case 'speaking':
                         prompt = COMMENTARY_PROMPTS.speaking(word.word);
@@ -823,17 +863,15 @@ ${history.map(m => `${m.role === 'user' ? '用户' : aiRole}: ${m.content}`).joi
                 try {
                     const { callAgent } = await import('@/lib/ai/deepseek');
 
-                    // Construct a specialized history for this commentary
-                    // We don't necessarily need the whole history, just the specific instruction
-                    // But to keep persona consistent, we can append to history.
-
+                    // Construct a CLEAN, one-shot history.
+                    // We intentionally DISCARD the previous conversation history for this specific call.
+                    // This forces the AI to obey the new "System Override" without being polluted by past context.
                     const commentarySystemMsg: DeepSeekMessage = {
                         role: 'system',
                         content: `[System Instruction]: ${prompt} \nReply in CHINESE.`
                     };
 
                     const newHistory = [
-                        ...session.conversationHistory,
                         commentarySystemMsg
                     ];
 
@@ -946,7 +984,7 @@ async function executeToolCall(
     const toolMsg: DeepSeekMessage = {
         role: 'tool',
         tool_call_id: toolCallId,
-        content: JSON.stringify({ success: true, message: "UI Component Rendered." })
+        content: JSON.stringify({ success: true, message: "UI Component Rendered. DO NOT repeat the content (examples, definitions, etc.) in your next text response. Keep it brief and encouraging." })
     };
 
     const s = getSession(get(), currentWordId);
@@ -967,12 +1005,17 @@ async function executeToolCall(
     };
 
     try {
+        // ALWAYS add the AI's introductory message if it exists, before the tool runs
+        if (aiMessage && aiMessage.trim() !== "" && aiMessage !== "...") {
+            get().addMessage({ role: 'assistant', content: aiMessage });
+        }
+
         await SkillRegistry.execute(toolCall.name, toolCall.arguments, context);
     } catch (error) {
         console.error(`Error executing skill ${toolCall.name}:`, error);
-        // Fallback to simple assistant message if tool fails
-        if (aiMessage) {
-            get().addMessage({ role: 'assistant', content: aiMessage });
+        // Fallback to simple assistant message ONLY if we didn't add the aiMessage already
+        if (aiMessage && (aiMessage === "..." || aiMessage === "")) {
+            get().addMessage({ role: 'assistant', content: "抱歉，卡片生成遇到了一点问题，请稍后重试。" });
         }
     }
 }
@@ -1004,17 +1047,18 @@ async function handleInteractionComplete(type: string, message: string) {
 - 拼写: ${session.mastery.spellingPassed ? '✅' : '未测'}
         `.trim();
 
-        // Streaming: Start with empty message
-        state.addMessage({ role: 'assistant', content: '' });
+        // Streaming: Start with '...' to avoid empty bubble
+        const messageId = state.addMessage({ role: 'assistant', content: '...' });
 
         const response = await callAgent(
             newHistory,
             word.word,
             word.detail.definition,
-            (token) => state.updateLastMessage((prev) => prev + token)
+            (token) => state.updateMessage(messageId, (prev) => (prev === '...' ? token : prev + token))
         );
 
         if (response.toolCall) {
+            state.deleteMessage(messageId);
             await executeToolCall(response.toolCall, word, response.message, useChatStore.getState, useChatStore.setState);
         } else {
             // Update history

@@ -7,7 +7,8 @@ import {
     DetailCardData,
     QuizCardData,
     SpeakingCardData,
-    SpellingWritingCardData
+    SpellingWritingCardData,
+    ExampleCardData
 } from "@/lib/ai/card-types";
 
 export interface WordLearningData {
@@ -16,6 +17,8 @@ export interface WordLearningData {
     quiz: QuizCardData;
     speaking: SpeakingCardData;
     spellingWriting: SpellingWritingCardData;
+    examples?: ExampleCardData; // Allow optional examples
+    collocations?: { phrase: string; translation: string }[];
 }
 
 // 词汇数据库
@@ -37,10 +40,10 @@ export const VOCABULARY_DATABASE: WordLearningData[] = [
             word: "serendipity",
             question: "serendipity 的意思是什么？",
             options: [
-                { id: "A", label: "悲伤的经历", isCorrect: false },
-                { id: "B", label: "机缘巧合；意外发现美好事物", isCorrect: true },
-                { id: "C", label: "精心的计划", isCorrect: false },
-                { id: "D", label: "困难的挑战", isCorrect: false }
+                { id: "A", text: "悲伤的经历", label: "悲伤的经历", isCorrect: false },
+                { id: "B", text: "机缘巧合；意外发现美好事物", label: "机缘巧合；意外发现美好事物", isCorrect: true },
+                { id: "C", text: "精心的计划", label: "精心的计划", isCorrect: false },
+                { id: "D", text: "困难的挑战", label: "困难的挑战", isCorrect: false }
             ],
             explanation: "Serendipity 描述的是意外发现美好事物的运气，就像在旧书店里意外遇到一本改变人生的书。"
         },
@@ -57,6 +60,24 @@ export const VOCABULARY_DATABASE: WordLearningData[] = [
             hint: "s_r_n_i_i_y",
             definition: "机缘巧合；意外发现美好事物的运气",
             exampleSentence: "It was pure serendipity that we met at the coffee shop."
+        },
+        examples: {
+            type: "example",
+            word: "serendipity",
+            examples: [
+                {
+                    sentence: "Finding that bookstore was pure serendipity.",
+                    translation: "发现那家书店纯属机缘巧合。"
+                },
+                {
+                    sentence: "It was serendipity that we met at the airport.",
+                    translation: "我们在机场相遇真是机缘巧合。"
+                },
+                {
+                    sentence: "Science is full of instances of serendipity.",
+                    translation: "科学史上充满了机缘巧合的例子。"
+                }
+            ]
         }
     },
     {
@@ -174,6 +195,24 @@ export const VOCABULARY_DATABASE: WordLearningData[] = [
             hint: "u_i_u_t_u_",
             definition: "无处不在的；普遍存在的",
             exampleSentence: "Smartphones have become ubiquitous in modern society."
+        },
+        examples: {
+            type: "example",
+            word: "ubiquitous",
+            examples: [
+                {
+                    sentence: "Smartphones have become ubiquitous in modern society.",
+                    translation: "智能手机在现代社会中已经无处不在。"
+                },
+                {
+                    sentence: "English has become a ubiquitous language in business.",
+                    translation: "英语在商业中已成为一种无处不在的语言。"
+                },
+                {
+                    sentence: "The company's logo is ubiquitous in the city.",
+                    translation: "这家公司的标志在这个城市里随处可见。"
+                }
+            ]
         }
     },
     {
@@ -217,9 +256,19 @@ export const VOCABULARY_DATABASE: WordLearningData[] = [
     }
 ];
 
+import { getIELTSWord } from './ielts-data';
+
 // 辅助函数：根据单词获取学习数据
 export function getWordData(word: string): WordLearningData | undefined {
-    return VOCABULARY_DATABASE.find(w => w.word.toLowerCase() === word.toLowerCase());
+    // 1. 优先从静态硬编码数据库找 (serendipity 等)
+    const staticWord = VOCABULARY_DATABASE.find(w => w.word.toLowerCase() === word.toLowerCase());
+    if (staticWord) return staticWord;
+
+    // 2. 从雅思 7000 词库找
+    const ieltsWord = getIELTSWord(word);
+    if (ieltsWord) return ieltsWord;
+
+    return undefined;
 }
 
 // 辅助函数：获取随机单词

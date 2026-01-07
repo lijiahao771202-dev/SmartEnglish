@@ -1,5 +1,4 @@
 import { Skill, SkillContext } from '../types';
-import { CardData } from '@/lib/ai/card-types';
 
 export const VisualAidSkill: Skill = {
     name: "show_visual_aid",
@@ -8,7 +7,7 @@ export const VisualAidSkill: Skill = {
         type: "object",
         properties: {
             description: { type: "string", description: "脑图结构的文字描述（如：中心是serendipity，分支有含义、用法...）" },
-            imageUrl: { type: "string", description: "可选的图片URL，暂时留空" }
+            imageUrl: { type: "string", description: "Optional image URL" }
         },
         required: ["description"]
     },
@@ -17,20 +16,16 @@ export const VisualAidSkill: Skill = {
         const word = getState().getCurrentWord();
         if (!word) return;
 
-        const visualData = {
-            type: 'visual_aid' as const,
-            word: word.word,
-            description: args.description,
-            imageUrl: args.imageUrl
-        };
+        // Fallback to Markdown Text since we don't have a specific VisualWidget yet.
+        // This prevents the "Empty Bubble" issue.
 
-        // Delay for better UX
+        const content = `### 🧠 Visual Structure: ${word.word}\n\n${args.description}\n\n(Imagine this structure in your mind!)`;
+
         await new Promise(r => setTimeout(r, 400));
+
         getState().addMessage({
             role: 'assistant',
-            content: '',
-            type: 'card',
-            cardData: visualData as unknown as CardData
+            content: content
         });
     }
 };

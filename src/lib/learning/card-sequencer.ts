@@ -1,64 +1,44 @@
 /**
- * 卡片序列引擎 - 新的 4 卡片学习流
- * Detail -> Quiz -> Speaking -> SpellingWriting -> Mastered
+ * 卡片序列管理器
+ * 管理 6 张系统卡片的进度
  */
 
-// 学习阶段枚举
+import { SystemCardType, CARD_SEQUENCE } from '@/lib/ai/card-types';
 
-// ===== 学习阶段枚举 =====
+// 学习阶段枚举 (与卡片类型对应)
 export enum CardStage {
-    Detail = 'detail',
-    Quiz = 'quiz',
-    Speaking = 'speaking',
-    SpellingWriting = 'spelling_writing',
-    Mastered = 'mastered'
+    Phonetic = 'phonetic',
+    Definition = 'definition',
+    Example = 'example',
+    MemoryHook = 'memory_hook',
+    Collocation = 'collocation',
+    Spelling = 'spelling',
+    Completed = 'completed'
 }
 
-// 阶段到卡片类型的映射
-const STAGE_TO_CARD_TYPE: Record<CardStage, string> = {
-    [CardStage.Detail]: 'detail',
-    [CardStage.Quiz]: 'quiz',
-    [CardStage.Speaking]: 'speaking',
-    [CardStage.SpellingWriting]: 'spelling_writing',
-    [CardStage.Mastered]: 'mastered'
-};
-
-// 阶段名称（用于 UI 显示）
+// 阶段名称
 const STAGE_NAMES: Record<CardStage, string> = {
-    [CardStage.Detail]: '📖 详情学习',
-    [CardStage.Quiz]: '❓ 词义测验',
-    [CardStage.Speaking]: '🗣️ 发音跟读',
-    [CardStage.SpellingWriting]: '✍️ 拼写仿写',
-    [CardStage.Mastered]: '✅ 已掌握'
+    [CardStage.Phonetic]: '🔊 发音学习',
+    [CardStage.Definition]: '📖 释义理解',
+    [CardStage.Example]: '📝 例句精读',
+    [CardStage.MemoryHook]: '💡 助记强化',
+    [CardStage.Collocation]: '🔗 搭配运用',
+    [CardStage.Spelling]: '✍️ 拼写挑战',
+    [CardStage.Completed]: '✅ 完成'
 };
 
-// 阶段顺序
-const STAGE_ORDER: CardStage[] = [
-    CardStage.Detail,
-    CardStage.Quiz,
-    CardStage.Speaking,
-    CardStage.SpellingWriting,
-    CardStage.Mastered
-];
-
-// ===== 核心函数 =====
-
 /**
- * 获取下一个学习阶段
+ * 获取下一个阶段
  */
-export function getNextCardStage(currentStage: CardStage): CardStage {
-    const currentIndex = STAGE_ORDER.indexOf(currentStage);
-    if (currentIndex === -1 || currentIndex >= STAGE_ORDER.length - 1) {
-        return CardStage.Mastered;
+export function getNextStage(current: CardStage): CardStage {
+    const stages = Object.values(CardStage);
+    const index = stages.indexOf(current);
+
+    if (index === -1 || index >= stages.length - 1) {
+        return CardStage.Completed;
     }
-    return STAGE_ORDER[currentIndex + 1];
-}
 
-/**
- * 获取阶段对应的卡片类型
- */
-export function getCardTypeForStage(stage: CardStage): string {
-    return STAGE_TO_CARD_TYPE[stage];
+    return stages[index + 1] as CardStage;
 }
 
 /**
@@ -72,28 +52,49 @@ export function getStageName(stage: CardStage): string {
  * 计算学习进度百分比
  */
 export function getStageProgress(stage: CardStage): number {
-    const currentIndex = STAGE_ORDER.indexOf(stage);
-    if (currentIndex === -1) return 0;
-    return Math.round((currentIndex / (STAGE_ORDER.length - 1)) * 100);
+    const stages = Object.values(CardStage);
+    const index = stages.indexOf(stage);
+
+    if (index === -1) return 0;
+
+    // 完成阶段是 100%
+    if (stage === CardStage.Completed) return 100;
+
+    // 其他阶段按比例计算
+    return Math.round((index / (stages.length - 1)) * 100);
 }
 
 /**
- * 获取阶段完成后的预设评论
- * @deprecated MindFlow 2.0 uses "Deep Dive" mode. No automatic transitions comments.
+ * 从 SystemCardType 转换为 CardStage
  */
-export function getCompletionComment(_stage: CardStage, _isSuccess: boolean): string {
-    return ""; // Silence is golden.
+export function cardTypeToStage(type: SystemCardType): CardStage {
+    return type as CardStage;
 }
 
 /**
- * 检查是否全部通过（4个阶段都完成）
+ * 从 CardStage 转换为 SystemCardType
  */
-export function isWordMastered(passedStages: Set<CardStage>): boolean {
-    const requiredStages = [
-        CardStage.Detail,
-        CardStage.Quiz,
-        CardStage.Speaking,
-        CardStage.SpellingWriting
-    ];
-    return requiredStages.every(stage => passedStages.has(stage));
+export function stageToCardType(stage: CardStage): SystemCardType | null {
+    if (stage === CardStage.Completed) return null;
+    return stage as SystemCardType;
+}
+
+/**
+ * 检查是否完成所有卡片
+ */
+export function isAllCompleted(completedCards: Set<SystemCardType>): boolean {
+    return CARD_SEQUENCE.every(type => completedCards.has(type));
+}
+
+// 兜底函数 (为了兼容性保留)
+export function getCardTypeForStage(stage: CardStage): string {
+    return stage;
+}
+
+export function getCompletionComment(): string {
+    return "";
+}
+
+export function getNextCardStage(current: CardStage): CardStage {
+    return getNextStage(current);
 }

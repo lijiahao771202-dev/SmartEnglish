@@ -10,9 +10,10 @@ import { GlassCard } from "./base/GlassCard";
 interface DetailCardProps {
     data: DetailCardData;
     onNext?: () => void;
+    userAvatar?: string;
 }
 
-export function DetailCard({ data, onNext }: DetailCardProps) {
+export function DetailCard({ data, onNext, userAvatar }: DetailCardProps) {
     const [isPlaying, setIsPlaying] = useState(false);
     const [showAiContent, setShowAiContent] = useState(false);
 
@@ -48,14 +49,26 @@ export function DetailCard({ data, onNext }: DetailCardProps) {
                                     "p-1.5 rounded-full hover:bg-blue-500/10 transition-colors",
                                     isPlaying && "text-blue-500 animate-pulse"
                                 )}
+                                title="Play pronunciation"
+                                aria-label="Play pronunciation"
                             >
                                 <Volume2 size={16} />
                             </button>
                         </div>
                     </div>
-                    <div className="p-2 rounded-xl bg-blue-500/10">
-                        <BookOpen size={20} className="text-blue-500" />
-                    </div>
+                    {userAvatar ? (
+                        <div className="w-10 h-10 rounded-full overflow-hidden border border-white/20">
+                            <img
+                                src={userAvatar}
+                                alt="User Avatar"
+                                className="w-full h-full object-cover"
+                            />
+                        </div>
+                    ) : (
+                        <div className="p-2 rounded-xl bg-blue-500/10">
+                            <BookOpen size={20} className="text-blue-500" />
+                        </div>
+                    )}
                 </div>
 
                 {/* 释义区 */}
@@ -75,7 +88,7 @@ export function DetailCard({ data, onNext }: DetailCardProps) {
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <span>📝 例句</span>
                         <button
-                            onClick={() => playAudio(data.exampleSentence)}
+                            onClick={() => playAudio(data.exampleSentence || '')}
                             disabled={isPlaying}
                             className="text-xs text-blue-500 hover:text-blue-600"
                         >
@@ -84,7 +97,7 @@ export function DetailCard({ data, onNext }: DetailCardProps) {
                     </div>
                     <div className="pl-3 border-l-2 border-blue-500/30">
                         <p className="text-foreground leading-relaxed">
-                            "{data.exampleSentence}"
+                            &quot;{data.exampleSentence}&quot;
                         </p>
                         <p className="text-sm text-muted-foreground mt-1">
                             {data.exampleTranslation}

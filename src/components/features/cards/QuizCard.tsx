@@ -84,7 +84,7 @@ export function QuizCard({ data, onNext }: QuizCardProps) {
                                 key={option.id}
                                 whileHover={!isSubmitted ? { scale: 1.01 } : {}}
                                 whileTap={!isSubmitted ? { scale: 0.99 } : {}}
-                                onClick={() => handleSelect(option.id)}
+                                onClick={() => handleSelect(option.id || String(index))}
                                 disabled={isSubmitted}
                                 className={cn(
                                     "w-full p-4 rounded-xl border-2 text-left transition-all flex items-center gap-3",
